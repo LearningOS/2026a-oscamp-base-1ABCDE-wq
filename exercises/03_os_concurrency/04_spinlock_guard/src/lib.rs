@@ -39,35 +39,38 @@ impl<T> SpinLock<T> {
     ///
     /// TODO: Spin-wait to acquire lock (compare_exchange), return SpinGuard on success.
     pub fn lock(&self) -> SpinGuard<'_, T> {
-        // TODO: Spin-wait to acquire lock
-        // TODO: Return SpinGuard { lock: self }
-        todo!()
+        loop {
+            match self
+                .locked
+                .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            {
+                Ok(_) => return SpinGuard { lock: self },
+                Err(_) => std::hint::spin_loop(),
+            }
+        }
     }
 }
 
-// TODO: Implement Deref trait for SpinGuard
-// Return &T, obtained via self.lock.data.get()
+// Deref gives read access through the guard.
 impl<T> Deref for SpinGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        todo!()
+        unsafe { &*self.lock.data.get() }
     }
 }
 
-// TODO: Implement DerefMut trait for SpinGuard
-// Return &mut T
+// DerefMut gives write access through the guard.
 impl<T> DerefMut for SpinGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
-        todo!()
+        unsafe { &mut *self.lock.data.get() }
     }
 }
 
-// TODO: Implement Drop trait for SpinGuard
-// Set lock.locked to false (Release ordering)
+// Dropping the guard releases the lock (RAII), even when unwinding.
 impl<T> Drop for SpinGuard<'_, T> {
     fn drop(&mut self) {
-        todo!()
+        self.lock.locked.store(false, Ordering::Release);
     }
 }
 
